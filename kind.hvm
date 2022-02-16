@@ -1,0 +1,91 @@
+// Bool : Type
+// True : Bool
+// False : Bool
+
+// (Not True) = False
+// (Not False) = True
+
+// Code : Type
+// Code = String
+
+// Answer : Type -> Type
+// Answer A = Parsed Code A | Failed String
+
+// Parser : Type -> Type
+// Parser A = Code -> Answer A
+
+// (IsNameChar Char) : Bool
+(IsNameChar chr) =
+  let is_letter = (| (& (<= 'a' chr) (<= chr 'z')) (& (<= 'A' chr) (<= chr 'Z')))
+  let is_number = (& (<= '0' chr) (<= chr '9'))
+  let is_symbol = (& (== '_' chr) (== '.' chr))
+  (| is_letter (| is_number is_symbol))
+
+// (IsSpace Char) : Bool
+(IsSpace chr) = (== ' ' chr)
+
+// (Match text:String code:Code) : (Answer Bool)
+(Match text code) = (Match_0 text code λx(x))
+  (Match_0 StrNil         ys             init) = (Parsed ys True)
+  (Match_0 (StrCons x xs) StrNil         init) = (Parsed (init Nil) False)
+  (Match_0 (StrCons x xs) (StrCons y ys) init) = (Match_1 (== x y) xs y ys init)
+  (Match_1 0 xs y ys init)                     = (Parsed (init (StrCons y ys)) False)
+  (Match_1 1 xs y ys init)                     = (Match_0 xs ys λk (init (StrCons y k)))
+
+// (SkipSpaces String) : String
+(SkipSpaces (StrCons x xs)) = (SkipSpaces_0 (IsSpace x) x xs)
+  (SkipSpaces_0 0 x xs)     = (StrCons x xs)
+  (SkipSpaces_0 1 x xs)     = (SkipSpaces xs)
+
+// (NameHere Code) : (Answer String)
+(NameHere code)                 = (NameHere_0 (GetName code))
+  (NameHere_0 (Pair code name)) = (Parsed code name)
+
+// (GetName String) : (Pair code:String name:String)
+(GetName code)                      = (GetName_0 (SkipSpaces code))
+  (GetName_0 StrNil)                = (Pair StrNil StrNil)
+  (GetName_0 (StrCons head tail))   = (GetName_1 (IsNameChar head) head tail)
+  (GetName_1 0 head tail)           = (Pair (StrCons head tail) StrNil)
+  (GetName_1 1 head tail)           = (GetName_2 head (GetName_0 tail))
+  (GetName_2 head (Pair code name)) = (Pair code (StrCons head name))
+
+// (Grammar String (List (Parser (Maybe A)))) : (Answer A)
+(Grammar Nil                   code)              = (Failed "Expected...")
+(Grammar (Cons choice choices) code)              = (Grammar_0 (choice code) choices)
+  (Grammar_0 (Failed err)                choices) = (Failed err)
+  (Grammar_0 (Parsed code None)          choices) = (Grammar choices code)
+  (Grammar_0 (Parsed code (Some result)) choices) = (Parsed code result)
+
+(ParsePair code) = (ParsePair_0 (Match "(" code))
+  (ParsePair_0 (Failed err))                      = (Failed err)
+  (ParsePair_0 (Parsed code False))               = (Failed "Error.")
+  (ParsePair_0 (Parsed code True))                = (ParsePair_1 (GetName code))
+  (ParsePair_1 (Pair code name_0))                = (ParsePair_2 (GetName code) name_0)
+  (ParsePair_2 (Pair code name_1) name_0)         = (ParsePair_3 (Match ")" code) name_0 name_1)
+  (ParsePair_3 (Failed err)        name_0 name_1) = (Failed err)
+  (ParsePair_3 (Parsed code False) name_0 name_1) = (Failed "Error.")
+  (ParsePair_3 (Parsed code True)  name_0 name_1) = (Parsed code (Pair name_0 name_1))
+
+(Main n) = (ParsePair "(foo bar)")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
