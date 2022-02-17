@@ -1,3 +1,6 @@
+// Parsing
+// =======
+
 // Bool : Type
 // True : Bool
 // False : Bool
@@ -14,6 +17,14 @@
 // Parser : Type -> Type
 // Parser A = Code -> Answer A
 
+// (If n:U32 t:A f:A) : A
+(If 1 t f) = t
+(If 0 t f) = f
+
+// (StrIsEmpty String) : Bool
+(StrIsEmpty StrNil)         = 1
+(StrIsEmpty (StrCons x xs)) = 0
+
 // (IsNameChar Char) : Bool
 (IsNameChar chr) =
   let is_letter = (| (& (<= 'a' chr) (<= chr 'z')) (& (<= 'A' chr) (<= chr 'Z')))
@@ -21,71 +32,94 @@
   let is_symbol = (& (== '_' chr) (== '.' chr))
   (| is_letter (| is_number is_symbol))
 
+// (Bind a_parser:(Parser A) b_parser:(∀A -> (Parser B))) : (Parser B)
+(Bind a_parser b_parser) = λcode (Bind_0 b_parser (a_parser code))
+  (Bind_0 b_parser (Parsed code a_val)) = (b_parser a_val code)
+  (Bind_0 b_parser (Failed err))        = (Failed err)
+
+// (Done val:A) : (Parser A)
+(Done value) = λcode (Parsed code value)
+
 // (IsSpace Char) : Bool
 (IsSpace chr) = (== ' ' chr)
 
-// (Match text:String code:Code) : (Answer Bool)
-(Match text code) = (Match_0 text code λx(x))
-  (Match_0 StrNil         ys             init) = (Parsed ys True)
-  (Match_0 (StrCons x xs) StrNil         init) = (Parsed (init Nil) False)
-  (Match_0 (StrCons x xs) (StrCons y ys) init) = (Match_1 (== x y) xs y ys init)
-  (Match_1 0 xs y ys init)                     = (Parsed (init (StrCons y ys)) False)
-  (Match_1 1 xs y ys init)                     = (Match_0 xs ys λk (init (StrCons y k)))
-
-// (SkipSpaces String) : String
-(SkipSpaces (StrCons x xs)) = (SkipSpaces_0 (IsSpace x) x xs)
-  (SkipSpaces_0 0 x xs)     = (StrCons x xs)
-  (SkipSpaces_0 1 x xs)     = (SkipSpaces xs)
-
-// (NameHere Code) : (Answer String)
-(NameHere code)                 = (NameHere_0 (GetName code))
-  (NameHere_0 (Pair code name)) = (Parsed code name)
-
 // (GetName String) : (Pair code:String name:String)
-(GetName code)                      = (GetName_0 (SkipSpaces code))
+(GetName)                           = λcode (GetName_0 code)
   (GetName_0 StrNil)                = (Pair StrNil StrNil)
   (GetName_0 (StrCons head tail))   = (GetName_1 (IsNameChar head) head tail)
   (GetName_1 0 head tail)           = (Pair (StrCons head tail) StrNil)
   (GetName_1 1 head tail)           = (GetName_2 head (GetName_0 tail))
   (GetName_2 head (Pair code name)) = (Pair code (StrCons head name))
 
-// (Grammar String (List (Parser (Maybe A)))) : (Answer A)
-(Grammar Nil                   code)              = (Failed "Expected...")
-(Grammar (Cons choice choices) code)              = (Grammar_0 (choice code) choices)
+// (MatchHere text:String) : (Parser Bool)
+(MatchHere text)                               = λcode (Match_0 text code λx(x))
+  (Match_0 StrNil         ys             init) = (Parsed ys True)
+  (Match_0 (StrCons x xs) StrNil         init) = (Parsed (init Nil) False)
+  (Match_0 (StrCons x xs) (StrCons y ys) init) = (Match_1 (== x y) xs y ys init)
+  (Match_1 0 xs y ys init)                     = (Parsed (init (StrCons y ys)) False)
+  (Match_1 1 xs y ys init)                     = (Match_0 xs ys λk (init (StrCons y k)))
+
+// (Match text:String) : (Parser Bool)
+(Match text) = λcode ((MatchHere text) (SkipSpaces code))
+
+// (ParseTextHere text:String) : (Parser Unit)
+(ParseTextHere text)      = (Bind (MatchHere text) λgot(ParseTextHere_0 got))
+  (ParseTextHere_0 False) = (Failed "Expected...")
+  (ParseTextHere_0 True)  = (Done Unit)
+
+// (ParseText text:String) : (Parser Unit)
+(ParseText text) = λcode ((ParseTextHere text) (SkipSpaces code))
+
+// (SkipSpaces String) : String
+(SkipSpaces (StrCons x xs)) = (SkipSpaces_0 (IsSpace x) x xs)
+  (SkipSpaces_0 0 x xs)     = (StrCons x xs)
+  (SkipSpaces_0 1 x xs)     = (SkipSpaces xs)
+
+// (ParseNameHere) : (Parser String)
+ParseNameHere                        = λcode (ParseNameHere_0 ((GetName) code))
+  (ParseNameHere_0 (Pair code name)) = (Parsed code name)
+
+// (ParseName) : (Parser String)
+ParseName = λcode ((ParseNameHere) (SkipSpaces code))
+
+// (Grammar choices:(List (Parser (Maybe A)))) : (Parser A)
+(Grammar Nil)                                     = λcode (Failed "Expected...")
+(Grammar (Cons choice choices))                   = λcode (Grammar_0 (choice code) choices)
   (Grammar_0 (Failed err)                choices) = (Failed err)
-  (Grammar_0 (Parsed code None)          choices) = (Grammar choices code)
+  (Grammar_0 (Parsed code None)          choices) = ((Grammar choices) code)
   (Grammar_0 (Parsed code (Some result)) choices) = (Parsed code result)
 
-(ParsePair code) = (ParsePair_0 (Match "(" code))
-  (ParsePair_0 (Failed err))                      = (Failed err)
-  (ParsePair_0 (Parsed code False))               = (Failed "Error.")
-  (ParsePair_0 (Parsed code True))                = (ParsePair_1 (GetName code))
-  (ParsePair_1 (Pair code name_0))                = (ParsePair_2 (GetName code) name_0)
-  (ParsePair_2 (Pair code name_1) name_0)         = (ParsePair_3 (Match ")" code) name_0 name_1)
-  (ParsePair_3 (Failed err)        name_0 name_1) = (Failed err)
-  (ParsePair_3 (Parsed code False) name_0 name_1) = (Failed "Error.")
-  (ParsePair_3 (Parsed code True)  name_0 name_1) = (Parsed code (Pair name_0 name_1))
+// (Guard head:(Parser Bool) body:(Parser A)) : (Parser (Maybe A))
+(Guard head body) = λcode ((Guard_0 (head code) body) code)
+  (Guard_0 (Failed err)          body) = λcode (Failed err)
+  (Guard_0 (Parsed code False)   body) = λcode (Parsed code None)
+  (Guard_0 (Parsed code True)    body) = (Bind body λgot(Done (Some got)))
 
-(Main n) = (ParsePair "(foo bar)")
+// (ParseLam) : (Parser (Maybe Term))
+(ParseLam) = (Guard (Match "@")
+  (Bind (Match "@")   λx
+  (Bind ParseNameHere λname
+  (Bind ParseTerm     λbody
+  (Done (Lam name body))))))
 
+// (ParseApp) : (Parser (Maybe Term)) 
+(ParseApp) = (Guard (Match "(")
+  (Bind (ParseText "(") λx
+  (Bind ParseTerm       λfunc
+  (Bind ParseTerm       λargm
+  (Bind (ParseText ")") λx
+  (Done (App func argm)))))))
 
+// (ParseVar) : (Parser (Maybe Term))
+(ParseVar) = (Bind ParseName λname (ParseVar_0 name))
+  (ParseVar_0 StrNil        ) = (Done None)
+  (ParseVar_0 (StrCons x xs)) = (Done (Some (Var (StrCons x xs))))
 
+// (ParseTerm) : (Parser Term)
+(ParseTerm) = (Grammar [
+  ParseLam,
+  ParseApp,
+  ParseVar,
+])
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+(Main n) = ((ParseTerm) "@fn @x (fn (fn x))")
