@@ -41,7 +41,7 @@
 (Done value) = λcode (Parsed code value)
 
 // (IsSpace Char) : Bool
-(IsSpace chr) = (== ' ' chr)
+(IsSpace chr) = (| (== 10 chr) (== ' ' chr))
 
 // (GetName String) : (Pair code:String name:String)
 (GetName)                           = λcode (GetName_0 code)
@@ -51,6 +51,15 @@
   (GetName_1 1 head tail)           = (GetName_2 head (GetName_0 tail))
   (GetName_2 head (Pair code name)) = (Pair code (StrCons head name))
 
+// (PeekHere text:String) : (Parser Bool)
+(PeekHere text)                               = λcode (Peek_0 text code λx(x))
+  (Peek_0 StrNil         ys             init) = (Parsed (init ys)  True)
+  (Peek_0 (StrCons x xs) StrNil         init) = (Parsed (init Nil) False)
+  (Peek_0 (StrCons x xs) (StrCons y ys) init) = (Peek_1 (== x y) xs y ys init)
+  (Peek_1 0 xs y ys init)                     = (Parsed (init (StrCons y ys)) False)
+  (Peek_1 1 xs y ys init)                     = (Peek_0 xs ys λk (init (StrCons y k)))
+
+// TODO: simplify by calling Peek here
 // (MatchHere text:String) : (Parser Bool)
 (MatchHere text)                               = λcode (Match_0 text code λx(x))
   (Match_0 StrNil         ys             init) = (Parsed ys True)
@@ -89,26 +98,25 @@ ParseName = λcode ((ParseNameHere) (SkipSpaces code))
   (Grammar_0 (Parsed code None)          choices) = ((Grammar choices) code)
   (Grammar_0 (Parsed code (Some result)) choices) = (Parsed code result)
 
+// Note: unlike Rust's version, this won't rollback
 // (Guard head:(Parser Bool) body:(Parser A)) : (Parser (Maybe A))
-(Guard head body) = λcode ((Guard_0 (head code) body) code)
-  (Guard_0 (Failed err)          body) = λcode (Failed err)
-  (Guard_0 (Parsed code False)   body) = λcode (Parsed code None)
-  (Guard_0 (Parsed code True)    body) = (Bind body λgot(Done (Some got)))
+(Guard head body) = λcode (Guard_0 (head code) body)
+  (Guard_0 (Failed err)          body) = (Failed err)
+  (Guard_0 (Parsed code False)   body) = (Parsed code None)
+  (Guard_0 (Parsed code True)    body) = ((Bind body λgot(Done (Some got))) code)
 
 // (ParseLam) : (Parser (Maybe Term))
 (ParseLam) = (Guard (Match "@")
-  (Bind (Match "@")   λx
   (Bind ParseNameHere λname
   (Bind ParseTerm     λbody
-  (Done (Lam name body))))))
+  (Done (Lam name body)))))
 
 // (ParseApp) : (Parser (Maybe Term)) 
 (ParseApp) = (Guard (Match "(")
-  (Bind (ParseText "(") λx
   (Bind ParseTerm       λfunc
   (Bind ParseTerm       λargm
   (Bind (ParseText ")") λx
-  (Done (App func argm)))))))
+  (Done (App func argm))))))
 
 // (ParseVar) : (Parser (Maybe Term))
 (ParseVar) = (Bind ParseName λname (ParseVar_0 name))
@@ -122,4 +130,134 @@ ParseName = λcode ((ParseNameHere) (SkipSpaces code))
   ParseVar,
 ])
 
-(Main n) = ((ParseTerm) "@fn @x (fn (fn x))")
+(Main n) = ((ParseTerm) "
+  @foo @x
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo (foo
+  x
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))
+  ))))))))))))))))")
